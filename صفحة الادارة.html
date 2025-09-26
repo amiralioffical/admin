@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لوحة إدارة المنتجات</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css">
+    <style>
+        body { font-family: 'Cairo', sans-serif; background-color: #f1f5f9; }
+        .form-input { transition: all 0.2s; }
+        .form-input:focus { ring: 2px; ring-color: #14b8a6; border-color: #14b8a6; }
+        .spinner-tiny { border: 2px solid rgba(0,0,0,0.1); border-left-color: #fff; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; display: inline-block; margin-left: 8px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #loading-overlay {
+            position: fixed;
+            inset: 0;
+            background-color: rgba(255, 255, 255, 0.8);
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .spinner-large { border: 5px solid rgba(0,0,0,0.1); border-left-color: #14b8a6; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .status-badge { padding: 4px 8px; border-radius: 9999px; font-size: 0.75rem; font-weight: bold; }
+        .status-pending { background-color: #fef3c7; color: #d97706; }
+        .status-approved { background-color: #d1fae5; color: #065f46; }
+        .status-blocked { background-color: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body class="p-4 sm:p-8">
+
+    <div id="loading-overlay">
+        <div class="spinner-large"></div>
+        <p class="text-slate-600 font-semibold">جاري تحميل بيانات الأصناف...</p>
+    </div>
+
+    <div class="max-w-6xl mx-auto bg-white p-6 rounded-2xl shadow-lg">
+        <h1 class="text-3xl font-bold text-slate-800 mb-6">لوحة إدارة المنتجات والمستخدمين</h1>
+
+        <!-- Tabs -->
+        <div class="flex mb-6">
+            <button id="products-tab" class="tab-btn px-4 py-2 bg-teal-500 text-white rounded-lg mr-2">المنتجات</button>
+            <button id="users-tab" class="tab-btn px-4 py-2 bg-slate-300 text-slate-700 rounded-lg">المستخدمين</button>
+        </div>
+
+        <!-- Products Tab -->
+        <div id="products-tab-content" class="tab-content active">
+            <!-- Add Product Form -->
+            <details class="mb-6 bg-slate-50 p-4 rounded-lg border">
+                <summary class="font-bold text-lg cursor-pointer">إضافة صنف جديد</summary>
+                <form id="add-product-form" class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <input type="text" id="name" placeholder="اسم الصنف" class="form-input md:col-span-2 p-2 border rounded" required>
+                    <input type="number" id="quantity" placeholder="الكمية" class="form-input p-2 border rounded" required>
+                    <textarea id="description" placeholder="وصف قصير (سطر واحد أو أكثر، كل سطر في خانة)" class="form-input md:col-span-3 p-2 border rounded" rows="3"></textarea>
+                    <input type="number" step="0.01" id="publicPrice" placeholder="سعر الجمهور" class="form-input p-2 border rounded" required>
+                    <input type="number" step="0.01" id="discount" placeholder="خصم الصيدلي (%)" class="form-input p-2 border rounded" required>
+                    <input type="text" id="region" placeholder="المنطقة" class="form-input p-2 border rounded">
+                    <input type="url" id="imageUrl" placeholder="رابط الصورة (مثل: https://imgur.com/abc.jpg)" class="form-input md:col-span-3 p-2 border rounded">
+                    <button type="submit" class="md:col-span-3 bg-teal-500 text-white font-bold py-2 px-4 rounded-lg hover:bg-teal-600 flex items-center justify-center">
+                        <span id="add-btn-text">إضافة الصنف</span>
+                        <span id="add-spinner" class="hidden spinner-tiny"></span>
+                    </button>
+                </form>
+                <div id="add-status" class="mt-3"></div>
+            </details>
+
+            <!-- Search and Filter -->
+            <input type="text" id="search-input" placeholder="ابحث بالاسم أو ID للعثور على أي صنف..." class="form-input w-full p-3 mb-4 border rounded-lg">
+            <div id="results-count" class="text-sm text-slate-500 mb-4"></div>
+
+            <!-- Products Table -->
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-right text-slate-500">
+                    <thead class="text-xs text-slate-700 uppercase bg-slate-100">
+                        <tr>
+                            <th class="px-6 py-3">ID</th>
+                            <th class="px-6 py-3">الصنف</th>
+                            <th class="px-6 py-3">الكمية</th>
+                            <th class="px-6 py-3">سعر الجمهور</th>
+                            <th class="px-6 py-3">الخصم %</th>
+                            <th class="px-6 py-3">المنطقة</th>
+                            <th class="px-6 py-3">رابط الصورة</th>
+                            <th class="px-6 py-3">إجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="products-tbody">
+                        <!-- Rows will be inserted here by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+            <div id="edit-status" class="mt-4"></div>
+        </div>
+
+        <!-- Users Tab -->
+        <div id="users-tab-content" class="tab-content">
+            <input type="text" id="user-search-input" placeholder="ابحث بالاسم أو ID..." class="form-input w-full p-3 mb-4 border rounded-lg">
+            <div id="users-count" class="text-sm text-slate-500 mb-4"></div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-right text-slate-500">
+                    <thead class="text-xs text-slate-700 uppercase bg-slate-100">
+                        <tr>
+                            <th class="px-6 py-3">ID</th>
+                            <th class="px-6 py-3">اسم الصيدلية</th>
+                            <th class="px-6 py-3">الهاتف</th>
+                            <th class="px-6 py-3">العنوان</th>
+                            <th class="px-6 py-3">الحالة</th>
+                            <th class="px-6 py-3">تاريخ التسجيل</th>
+                            <th class="px-6 py-3">إجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-tbody">
+                        <!-- Rows will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+            <div id="user-status" class="mt-4"></div>
+        </div>
+    </div>
+
+    <script>
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw2liABztwCljtmT8zCsu7IFjdolk5XT4Fp5BzpN2H_wBReCto-jTJ1m6ilpS1PFnsEQg/exec";
+        let allProducts = [];
+        let allUsers = [];
+        const INITIAL_DISPLAY_LIMIT = 50;
+        const CACHE_KEY_PRODUCTS = 'products_cache';
+        const CACHE_KEY_USERS = 'users_cache';
+        const CACHE_TTL = 300; // 5 دقائق
+
+        const $ = (selector) => document.querySelector(selector);
+
+        function showStatus(element, message, type = 'info') {
+            const color = type === 'success' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+            element.innerHTML = `<div class="${color} p-3 rounded-md text-sm">${message}</div>`;
+            setTimeout(() => element.innerHTML = '', 4000);
+        }
+
+        function debounce(func, delay) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), delay);
+            };
+        }
+
+        function renderProducts(products, limit = null) {
+            const tbody = $('#products-tbody');
+            tbody.innerHTML = '';
+            const productsToRender = limit ? products.slice(0, limit) : products;
+
+            if (productsToRender.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" class="text-center py-8 text-slate-500">لا توجد أصناف لعرضها.</td></tr>`;
+            }
+
+            productsToRender.forEach(p => {
+                const row = document.createElement('tr');
+                row.className = 'bg-white border-b';
+                row.dataset.productId = p.id;
+                const imgPreview = p.imageUrl ? `<img src="${p.imageUrl}" alt="صورة" class="w-12 h-12 object-cover rounded">` : 'لا صورة';
+                row.innerHTML = `
+                    <td class="px-6 py-4 font-medium text-slate-900">${p.id}</td>
+                    <td class="px-6 py-4"><input type="text" value="${p.name}" data-field="name" class="form-input w-full p-1 border rounded"></td>
+                    <td class="px-6 py-4"><input type="number" value="${p.quantity}" data-field="quantity" class="form-input w-20 p-1 border rounded"></td>
+                    <td class="px-6 py-4"><input type="number" step="0.01" value="${p.publicPrice}" data-field="publicPrice" class="form-input w-24 p-1 border rounded"></td>
+                    <td class="px-6 py-4"><input type="number" step="0.01" value="${p.discount}" data-field="discount" class="form-input w-20 p-1 border rounded"></td>
+                    <td class="px-6 py-4"><input type="text" value="${p.region || ''}" data-field="region" class="form-input w-24 p-1 border rounded"></td>
+                    <td class="px-6 py-4">${imgPreview}<br><input type="url" value="${p.imageUrl || ''}" data-field="imageUrl" placeholder="رابط الصورة" class="form-input w-full p-1 border rounded mt-1"></td>
+                    <td class="px-6 py-4 flex gap-2">
+                        <button onclick="saveProduct(${p.id}, this)" class="text-white bg-blue-600 hover:bg-blue-700 p-2 rounded-md text-xs">حفظ</button>
+                        <button onclick="deleteProduct(${p.id}, this)" class="text-white bg-red-600 hover:bg-red-700 p-2 rounded-md text-xs">حذف</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            const countEl = $('#results-count');
+            if (limit) {
+                countEl.textContent = `يتم عرض أحدث ${productsToRender.length} صنف من إجمالي ${products.length} صنف.`;
+            } else {
+                countEl.textContent = `تم العثور على ${productsToRender.length} صنف.`;
+            }
+        }
+
+        function handleSearch(event) {
+            const searchTerm = event.target.value.toLowerCase().trim();
+
+            if (searchTerm === '') {
+                renderProducts(allProducts, INITIAL_DISPLAY_LIMIT);
+            } else {
+                const filtered = allProducts.filter(p => 
+                    p.name.toLowerCase().includes(searchTerm) ||
+                    p.id.toString().includes(searchTerm)
+                );
+                renderProducts(filtered);
+            }
+        }
+
+        async function saveProduct(id, btn) {
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            btn.disabled = true;
+
+            const row = btn.closest('tr');
+            const formData = new FormData();
+            formData.append('action', 'updateProduct');
+            formData.append('id', id);
+            
+            const originalProduct = allProducts.find(p => p.id == id);
+            formData.append('description', originalProduct ? originalProduct.description : '');
+
+            row.querySelectorAll('input[data-field]').forEach(input => {
+                formData.append(input.dataset.field, input.value);
+            });
+
+            try {
+                const res = await fetch(SCRIPT_URL, { method: 'POST', body: formData });
+                const result = await res.json();
+                if (result.success) {
+                    showStatus($('#edit-status'), `تم حفظ الصنف #${id} بنجاح.`, 'success');
+                    const productIndex = allProducts.findIndex(p => p.id == id);
+                    if (productIndex > -1) {
+                        row.querySelectorAll('input[data-field]').forEach(input => {
+                            allProducts[productIndex][input.dataset.field] = input.value;
+                        });
+                    }
+                    renderProducts(allProducts, INITIAL_DISPLAY_LIMIT); // Refresh
+                } else {
+                    throw new Error(result.error || 'فشل الحفظ');
+                }
+            } catch (err) {
+                showStatus($('#edit-status'), `خطأ: ${err.message}`, 'error');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+
+        async function deleteProduct(id, btn) {
+            if (!confirm(`هل أنت متأكد من حذف الصنف #${id}؟`)) return;
+            
+            const row = btn.closest('tr');
+            row.style.opacity = '0.5';
+            
+            const formData = new FormData();
+            formData.append('action', 'deleteProduct');
+            formData.append('id', id);
+
+            try {
+                const res = await fetch(SCRIPT_URL, { method: 'POST', body: formData });
+                const result = await res.json();
+                if (result.success) {
+                    row.remove();
+                    allProducts = allProducts.filter(p => p.id != id);
+                    showStatus($('#edit-status'), `تم حذف الصنف #${id}.`, 'success');
+                    handleSearch({ target: $('#search-input') });
+                } else {
+                    throw new Error(result.error || 'فشل الحذف');
+                }
+            } catch (err) {
+                row.style.opacity = '1';
+                showStatus($('#edit-status'), `خطأ: ${err.message}`, 'error');
+            }
+        }
+
+        async function fetchProducts() {
+            $('#loading-overlay').style.display = 'flex';
+            try {
+                const res = await fetch(`${SCRIPT_URL}?action=getProducts`);
+                if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+                const data = await res.json();
+                allProducts = Array.isArray(data) ? data.reverse() : [];
+                renderProducts(allProducts, INITIAL_DISPLAY_LIMIT);
+            } catch (err) {
+                showStatus($('#edit-status'), 'فشل في تحميل قائمة الأصناف.', 'error');
+            } finally {
+                $('#loading-overlay').style.display = 'none';
+            }
+        }
+
+        function renderUsers(users) {
+            const tbody = $('#users-tbody');
+            tbody.innerHTML = '';
+
+            if (users.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-slate-500">لا توجد مستخدمين.</td></tr>`;
+            }
+
+            users.forEach(u => {
+                const statusClass = `status-${u.status}`;
+                const statusText = u.status === 'pending' ? 'معلق' : u.status === 'approved' ? 'موافق' : 'محظور';
+                const row = document.createElement('tr');
+                row.className = 'bg-white border-b';
+                row.dataset.userId = u.userId;
+                row.innerHTML = `
+                    <td class="px-6 py-4 font-medium text-slate-900">${u.userId}</td>
+                    <td class="px-6 py-4">${u.pharmacyName}</td>
+                    <td class="px-6 py-4">${u.phone}</td>
+                    <td class="px-6 py-4">${u.address}</td>
+                    <td class="px-6 py-4"><span class="status-badge ${statusClass}">${statusText}</span></td>
+                    <td class="px-6 py-4">${u.registrationDate}</td>
+                    <td class="px-6 py-4 flex gap-2">
+                        ${u.status === 'pending' ? `<button onclick="approveUser(${u.userId}, this)" class="text-white bg-green-600 hover:bg-green-700 p-2 rounded-md text-xs">موافقة</button>` : ''}
+                        <button onclick="blockUser(${u.userId}, this)" class="text-white bg-yellow-600 hover:bg-yellow-700 p-2 rounded-md text-xs">حظر</button>
+                        <button onclick="deleteUser(${u.userId}, this)" class="text-white bg-red-600 hover:bg-red-700 p-2 rounded-md text-xs">حذف</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            $('#users-count').textContent = `تم العثور على ${users.length} مستخدم.`;
+        }
+
+        function handleUserSearch(event) {
+            const searchTerm = event.target.value.toLowerCase().trim();
+            if (searchTerm === '') {
+                renderUsers(allUsers);
+            } else {
+                const filtered = allUsers.filter(u => 
+                    u.pharmacyName.toLowerCase().includes(searchTerm) ||
+                    u.userId.toString().includes(searchTerm) ||
+                    u.phone.includes(searchTerm)
+                );
+                renderUsers(filtered);
+            }
+        }
+
+        async function approveUser(id, btn) {
+            await updateUserStatus(id, 'approved', btn, 'تم الموافقة على المستخدم');
+        }
+
+        async function blockUser(id, btn) {
+            await updateUserStatus(id, 'blocked', btn, 'تم حظر المستخدم');
+        }
+
+        async function updateUserStatus(id, status, btn, successMsg) {
+            if (!confirm(`هل أنت متأكد من ${status === 'approved' ? 'الموافقة' : 'الحظر'} على المستخدم #${id}؟`)) return;
+            
+            const formData = new FormData();
+            formData.append('action', status === 'approved' ? 'approveUser' : 'blockUser');
+            formData.append('userId', id);
+
+            try {
+                const res = await fetch(SCRIPT_URL, { method: 'POST', body: formData });
+                const result = await res.json();
+                if (result.success) {
+                    showStatus($('#user-status'), successMsg, 'success');
+                    const userIndex = allUsers.findIndex(u => u.userId == id);
+                    if (userIndex > -1) {
+                        allUsers[userIndex].status = status;
+                    }
+                    handleUserSearch({ target: $('#user-search-input') });
+                } else {
+                    throw new Error(result.error || 'فشل التحديث');
+                }
+            } catch (err) {
+                showStatus($('#user-status'), `خطأ: ${err.message}`, 'error');
+            }
+        }
+
+        async function deleteUser(id, btn) {
+            if (!confirm(`هل أنت متأكد من حذف المستخدم #${id}؟`)) return;
+            
+            const formData = new FormData();
+            formData.append('action', 'deleteUser');
+            formData.append('userId', id);
+
+            try {
+                const res = await fetch(SCRIPT_URL, { method: 'POST', body: formData });
+                const result = await res.json();
+                if (result.success) {
+                    showStatus($('#user-status'), 'تم حذف المستخدم.', 'success');
+                    allUsers = allUsers.filter(u => u.userId != id);
+                    handleUserSearch({ target: $('#user-search-input') });
+                } else {
+                    throw new Error(result.error || 'فشل الحذف');
+                }
+            } catch (err) {
+                showStatus($('#user-status'), `خطأ: ${err.message}`, 'error');
+            }
+        }
+
+        async function fetchUsers() {
+            try {
+                const res = await fetch(`${SCRIPT_URL}?action=getUsers`);
+                const data = await res.json();
+                allUsers = Array.isArray(data) ? data : [];
+                renderUsers(allUsers);
+            } catch (err) {
+                showStatus($('#user-status'), 'فشل في تحميل قائمة المستخدمين.', 'error');
+            }
+        }
+
+        // Tab switching
+        document.addEventListener('click', (e) => {
+            if (e.target.id === 'products-tab') {
+                document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('bg-teal-500', 'text-white'));
+                e.target.classList.add('bg-teal-500', 'text-white');
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                $('#products-tab-content').classList.add('active');
+            } else if (e.target.id === 'users-tab') {
+                document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('bg-teal-500', 'text-white'));
+                e.target.classList.add('bg-teal-500', 'text-white');
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+                $('#users-tab-content').classList.add('active');
+                if (allUsers.length === 0) fetchUsers();
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchProducts();
+
+            $('#search-input').addEventListener('input', debounce(handleSearch, 300));
+            $('#user-search-input').addEventListener('input', debounce(handleUserSearch, 300));
+
+            $('#add-product-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                $('#add-btn-text').classList.add('hidden');
+                $('#add-spinner').classList.remove('hidden');
+                
+                const formData = new FormData();
+                formData.append('action', 'addProduct');
+                formData.append('name', $('#name').value);
+                formData.append('description', $('#description').value);
+                formData.append('quantity', $('#quantity').value);
+                formData.append('publicPrice', $('#publicPrice').value);
+                formData.append('discount', $('#discount').value);
+                formData.append('region', $('#region').value);
+                formData.append('imageUrl', $('#imageUrl').value);
+
+                try {
+                    const res = await fetch(SCRIPT_URL, { method: 'POST', body: formData });
+                    const result = await res.json();
+                    if (result.success) {
+                        showStatus($('#add-status'), 'تمت إضافة الصنف بنجاح.', 'success');
+                        e.target.reset();
+                        fetchProducts(); // Refresh مع cache في GAS
+                    } else {
+                        throw new Error(result.error || 'فشل في إضافة الصنف');
+                    }
+                } catch (err) {
+                    showStatus($('#add-status'), `خطأ: ${err.message}`, 'error');
+                } finally {
+                    $('#add-btn-text').classList.remove('hidden');
+                    $('#add-spinner').classList.add('hidden');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
